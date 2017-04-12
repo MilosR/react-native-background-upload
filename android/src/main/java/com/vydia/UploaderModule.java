@@ -16,7 +16,7 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
-import net.gotev.uploadservice.BinaryUploadRequest;
+import net.gotev.uploadservice.MultipartUploadRequest;
 import net.gotev.uploadservice.ServerResponse;
 import net.gotev.uploadservice.UploadInfo;
 import net.gotev.uploadservice.UploadNotificationConfig;
@@ -80,11 +80,12 @@ public class UploaderModule extends ReactContextBaseJavaModule {
   }
 
   /*
-  * Starts a file upload.
+  * Starts upload.
   * Options are passed in as the first argument as a js hash:
   * {
   *   url: string.  url to post to.
   *   path: string.  path to the file on the device
+  *   parameters: hash of name/value header pairs
   *   headers: hash of name/value header pairs
   *   method: HTTP method to use.  Default is "POST"
   *   notification: hash for customizing tray notifiaction
@@ -95,7 +96,7 @@ public class UploaderModule extends ReactContextBaseJavaModule {
    */
   @ReactMethod
   public void startUpload(ReadableMap options, final Promise promise) {
-    for (String key : new String[]{"url", "path"}) {
+    for (String key : new String[]{"url"}) {
       if (!options.hasKey(key)) {
         promise.reject(new IllegalArgumentException("Missing '" + key + "' field."));
         return;
@@ -105,8 +106,16 @@ public class UploaderModule extends ReactContextBaseJavaModule {
         return;
       }
     }
+    if (options.hasKey("file") && options.getType("file") != ReadableType.String) {
+      promise.reject(new IllegalArgumentException("file must be a string."));
+      return;
+    }
     if (options.hasKey("headers") && options.getType("headers") != ReadableType.Map) {
       promise.reject(new IllegalArgumentException("headers must be a hash."));
+      return;
+    }
+    if (options.hasKey("parameters") && options.getType("parameters") != ReadableType.Map) {
+      promise.reject(new IllegalArgumentException("parameters must be a hash."));
       return;
     }
     if (options.hasKey("notification") && options.getType("notification") != ReadableType.Map) {
@@ -121,14 +130,14 @@ public class UploaderModule extends ReactContextBaseJavaModule {
     }
 
     String url = options.getString("url");
-    String filePath = options.getString("path");
+    String filePath = options.getString("file");
     String method = options.hasKey("method") && options.getType("method") == ReadableType.String ? options.getString("method") : "POST";
     final String customUploadId = options.hasKey("customUploadId") && options.getType("method") == ReadableType.String ? options.getString("customUploadId") : null;
     try {
-      final BinaryUploadRequest request = (BinaryUploadRequest) new BinaryUploadRequest(this.getReactApplicationContext(), url)
+      final MultipartUploadRequest request = (MultipartUploadRequest) new MultipartUploadRequest(this.getReactApplicationContext(), url)
               .setMethod(method)
-              .setFileToUpload(filePath)
               .setMaxRetries(2)
+              .addFileToUpload(filePath, "file")
               .setDelegate(new UploadStatusDelegate() {
                 @Override
                 public void onProgress(UploadInfo uploadInfo) {
@@ -175,6 +184,18 @@ public class UploaderModule extends ReactContextBaseJavaModule {
             return;
           }
           request.addHeader(key, headers.getString(key));
+        }
+      }
+      if (options.hasKey("parameters")) {
+        ReadableMap parameters = options.getMap("parameters");
+        ReadableMapKeySetIterator keys = parameters.keySetIterator();
+        while (keys.hasNextKey()) {
+          String key = keys.nextKey();
+          if (parameters.getType(key) != ReadableType.String) {
+            promise.reject(new IllegalArgumentException("Parameter must be string key/values.  Value was invalid for '" + key + "'"));
+            return;
+          }
+          request.addParameter(key, parameters.getString(key));
         }
       }
       String uploadId = request.startUpload();
