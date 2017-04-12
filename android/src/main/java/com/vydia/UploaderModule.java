@@ -96,7 +96,7 @@ public class UploaderModule extends ReactContextBaseJavaModule {
    */
   @ReactMethod
   public void startUpload(ReadableMap options, final Promise promise) {
-    for (String key : new String[]{"url", "file"}) {
+    for (String key : new String[]{"url", "path"}) {
       if (!options.hasKey(key)) {
         promise.reject(new IllegalArgumentException("Missing '" + key + "' field."));
         return;
@@ -106,8 +106,8 @@ public class UploaderModule extends ReactContextBaseJavaModule {
         return;
       }
     }
-    if (options.hasKey("file") && options.getType("file") != ReadableType.String) {
-      promise.reject(new IllegalArgumentException("file must be a string."));
+    if (options.hasKey("path") && options.getType("path") != ReadableType.String) {
+      promise.reject(new IllegalArgumentException("path must be a string."));
       return;
     }
     if (options.hasKey("headers") && options.getType("headers") != ReadableType.Map) {
@@ -130,7 +130,7 @@ public class UploaderModule extends ReactContextBaseJavaModule {
     }
 
     String url = options.getString("url");
-    String filePath = options.getString("file");
+    String filePath = options.getString("path");
     String method = options.hasKey("method") && options.getType("method") == ReadableType.String ? options.getString("method") : "POST";
     final String customUploadId = options.hasKey("customUploadId") && options.getType("method") == ReadableType.String ? options.getString("customUploadId") : null;
     try {
